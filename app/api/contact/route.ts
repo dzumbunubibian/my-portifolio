@@ -1,13 +1,9 @@
-
 import { Resend } from "resend";
 import { NextResponse } from "next/server";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(request: Request) {
   try {
-    const { name, email, subject, message, _gotcha } =
-      await request.json();
+    const { name, email, subject, message, _gotcha } = await request.json();
 
     if (_gotcha) {
       return NextResponse.json(
@@ -53,26 +49,29 @@ export async function POST(request: Request) {
       );
     }
 
-    if (
-      !process.env.RESEND_API_KEY ||
-      !process.env.CONTACT_TO_EMAIL
-    ) {
+    const apiKey = process.env.RESEND_API_KEY;
+    const toEmail = process.env.CONTACT_TO_EMAIL;
+
+    if (!apiKey || !toEmail) {
       return NextResponse.json(
         { error: "Email service is not configured." },
         { status: 500 }
       );
     }
-const { error } = await resend.emails.send({
-  from: "Portfolio Contact <onboarding@resend.dev>",
-  to: [process.env.CONTACT_TO_EMAIL!],
-  replyTo: cleanEmail,
-  subject: cleanSubject || `Portfolio message from ${cleanName}`,
-  text: `Name: ${cleanName}
+
+    const resend = new Resend(apiKey);
+
+    const { error } = await resend.emails.send({
+      from: "Portfolio Contact <onboarding@resend.dev>",
+      to: [toEmail],
+      replyTo: cleanEmail,
+      subject: cleanSubject || `Portfolio message from ${cleanName}`,
+      text: `Name: ${cleanName}
 Email: ${cleanEmail}
 
 Message:
 ${cleanMessage}`,
-});
+    });
 
     if (error) {
       console.error("Resend error:", error);
@@ -90,7 +89,6 @@ ${cleanMessage}`,
       },
       { status: 200 }
     );
-
   } catch (error) {
     console.error("Contact API error:", error);
 
