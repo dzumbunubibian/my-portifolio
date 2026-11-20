@@ -1,9 +1,7 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useScroll, useSpring } from "framer-motion";
-import { useState } from "react";
-
+import { useEffect, useState } from "react";
 
 const pages = [
   { label: "Home", href: "/#home" },
@@ -36,9 +34,26 @@ function WaveText({ text }: { text: string }) {
 export default function Header() {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState<string | null>(null);
-  const path = usePathname();
+  const [current, setCurrent] = useState("home");
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 25 });
+
+  useEffect(() => {
+    const ids = pages.map((p) => p.href.split("#")[1]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setCurrent(entry.target.id);
+        });
+      },
+      { rootMargin: "-40% 0px -55% 0px" }
+    );
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <motion.header
@@ -63,7 +78,7 @@ export default function Header() {
       />
 
       <div className="mx-auto flex items-center justify-between px-[6vw] py-3">
-        <Link href="/" className="flex text-2xl font-bold">
+        <Link href="/#home" className="flex text-2xl font-bold">
           <motion.span
             className="inline-block"
             whileHover={{ rotate: [0, -8, 8, -4, 0], scale: 1.1 }}
@@ -82,7 +97,7 @@ export default function Header() {
 
         <nav className="hidden items-center gap-1 md:flex" onMouseLeave={() => setHover(null)}>
           {pages.map((l, i) => {
-            const active = path === l.href;
+            const active = current === l.href.split("#")[1];
             return (
               <motion.div
                 key={l.href}
@@ -121,18 +136,15 @@ export default function Header() {
           })}
         </nav>
 
-        <div className="flex items-center gap-3">
-    
-          <motion.button
-            whileTap={{ scale: 0.8, rotate: 90 }}
-            className="rounded-md border border-line px-3 py-1 text-xl md:hidden"
-            aria-label={open ? "Close navigation" : "Open navigation"}
-            aria-expanded={open}
-            onClick={() => setOpen(!open)}
-          >
-            {open ? "✕" : "☰"}
-          </motion.button>
-        </div>
+        <motion.button
+          whileTap={{ scale: 0.8, rotate: 90 }}
+          className="rounded-md border border-line px-3 py-1 text-xl md:hidden"
+          aria-label={open ? "Close navigation" : "Open navigation"}
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? "✕" : "☰"}
+        </motion.button>
       </div>
 
       <AnimatePresence>
@@ -154,7 +166,9 @@ export default function Header() {
                 <Link
                   href={l.href}
                   onClick={() => setOpen(false)}
-                  className={`block px-[6vw] py-4 ${path === l.href ? "text-amber" : "text-muted"}`}
+                  className={`block px-[6vw] py-4 ${
+                    current === l.href.split("#")[1] ? "text-amber" : "text-muted"
+                  }`}
                 >
                   {l.label}
                 </Link>

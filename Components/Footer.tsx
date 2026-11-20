@@ -61,9 +61,12 @@ export default function Footer() {
                   whileHover={{ x: 6 }}
                   transition={{ type: "spring", stiffness: 400, damping: 20 }}
                 >
-                  <Link href={p.href} className="transition-colors hover:text-amber">
-                    {p.label}
-                  </Link>
+                  <a
+  href={p.href}
+  className="transition-colors hover:text-amber"
+>
+  {p.label}
+</a>
                 </motion.span>
               </li>
             ))}

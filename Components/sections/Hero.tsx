@@ -26,7 +26,7 @@ export default function Home() {
   Explore my work
 </Link>
          <a
-  href="https://canva.link/5cgl305y0gj2k5n"
+  href="/Bibian-Dzumbunu-CV.pdf"
   target="_blank"
   rel="noopener noreferrer"
   className="rounded-full border-2 border-line px-7 py-3 font-bold transition hover:-translate-y-1 hover:border-amber hover:text-amber"
