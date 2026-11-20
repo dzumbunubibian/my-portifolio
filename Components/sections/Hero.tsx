@@ -19,9 +19,12 @@ export default function Home() {
           digital marketing and building useful digital experiences.
         </p>
         <div className="flex flex-wrap gap-4">
-          <Link href="/projects" className="rounded-full border-2 border-ink bg-violet px-7 py-3 font-bold text-ink shadow-[4px_4px_0_0_var(--color-amber)] transition hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-amber)] active:translate-x-1 active:translate-y-1 active:shadow-none">
-            Explore my work
-          </Link>
+          <Link
+  href="/#projects"
+  className="rounded-full border-2 border-ink bg-violet px-7 py-3 font-bold text-ink shadow-[4px_4px_0_0_var(--color-amber)] transition hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-amber)] active:translate-x-1 active:translate-y-1 active:shadow-none"
+>
+  Explore my work
+</Link>
          <a
   href="https://canva.link/5cgl305y0gj2k5n"
   target="_blank"
