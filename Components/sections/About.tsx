@@ -159,12 +159,13 @@ export default function About() {
 
         <div className="flex flex-wrap gap-4">
           <a
-            href="/cv.pdf"
-            download="Bibian-Dzumbunu-CV.pdf"
-            className="rounded-full border-2 border-ink bg-violet px-7 py-3 font-bold text-ink shadow-[4px_4px_0_0_var(--color-amber)] transition hover:-translate-y-1"
-          >
-            Download CV
-          </a>
+  href="/Bibian-Dzumbunu-CV.pdf"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="rounded-full border-2 border-line px-7 py-3 font-bold transition hover:-translate-y-1 hover:border-amber hover:text-amber"
+>
+  Download CV
+</a>
           <Link
             href="#contact"
             className="rounded-full border-2 border-line px-7 py-3 font-bold transition hover:-translate-y-1 hover:border-amber hover:text-amber"
