@@ -7,40 +7,55 @@ const field =
 
 export default function ContactForm() {
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-  e.preventDefault();
+    e.preventDefault();
 
-  const form = e.currentTarget;
-  setStatus("sending");
+    const form = e.currentTarget;
+    setStatus("sending");
+    setErrorMessage("");
 
-  const formData = new FormData(form);
+    const formData = new FormData(form);
 
-  const data = {
-    name: formData.get("name"),
-    email: formData.get("email"),
-    subject: formData.get("subject"),
-    message: formData.get("message"),
-  };
+    const data = {
+      name: formData.get("name"),
+      email: formData.get("email"),
+      subject: formData.get("subject"),
+      message: formData.get("message"),
+      _gotcha: formData.get("_gotcha"),
+    };
 
-  try {
-    const res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
 
-    if (res.ok) {
+      if (!res.ok) {
+        const responseBody: unknown = await res.json();
+        const message =
+          responseBody &&
+          typeof responseBody === "object" &&
+          "error" in responseBody &&
+          typeof responseBody.error === "string"
+            ? responseBody.error
+            : `Unable to send your message (HTTP ${res.status}). Please email me directly.`;
+        setErrorMessage(message);
+        setStatus("error");
+        return;
+      }
+
       form.reset();
       setStatus("sent");
-    } else {
+    } catch {
+      setErrorMessage("Could not reach the contact service. Please email me directly.");
       setStatus("error");
     }
-  } catch {
-    setStatus("error");
   }
-}
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-line bg-white/5 p-6">
@@ -92,9 +107,7 @@ export default function ContactForm() {
 
       <p role="status" className="min-h-5 text-sm">
         {status === "sent" && <span className="text-mint">Thanks! Your message has been sent.</span>}
-        {status === "error" && (
-          <span className="text-amber">Something went wrong. Please email me directly instead.</span>
-        )}
+        {status === "error" && <span className="text-amber">{errorMessage}</span>}
       </p>
     </form>
   );

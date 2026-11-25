@@ -1,137 +1,113 @@
-import { Resend } from "resend";
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const hits = new Map<string, { count: number; reset: number }>();
 const WINDOW_MS = 10 * 60 * 1000;
-const MAX_REQUESTS = 5;
-const hits = new Map<string, number[]>();
+const MAX_HITS = 5;
 
-function isRateLimited(ip: string) {
+function rateLimited(ip: string) {
   const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  recent.push(now);
-  hits.set(ip, recent);
-  if (hits.size > 500) {
-    for (const [key, times] of hits) {
-      if (times.every((t) => now - t >= WINDOW_MS)) hits.delete(key);
-    }
+  const entry = hits.get(ip);
+  if (!entry || entry.reset < now) {
+    hits.set(ip, { count: 1, reset: now + WINDOW_MS });
+    return false;
   }
-  return recent.length > MAX_REQUESTS;
+  entry.count += 1;
+  return entry.count > MAX_HITS;
 }
 
-function oneLine(value: string) {
-  return value.replace(/[\r\n]+/g, " ").trim();
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export async function POST(req: Request) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
-export async function POST(request: Request) {
+  if (rateLimited(ip)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  let body: Record<string, unknown>;
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
-    if (isRateLimited(ip)) {
-      return NextResponse.json(
-        { error: "Too many messages. Please try again later." },
-        { status: 429 }
-      );
-    }
+  if (body._gotcha) {
+    return NextResponse.json({ ok: true });
+  }
 
-    let body: Record<string, unknown>;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-    }
+  const name = String(body.name ?? "").trim();
+  const email = String(body.email ?? "").trim();
+  const subject = String(body.subject ?? "").trim() || "New contact form message";
+  const message = String(body.message ?? "").trim();
 
-    const { name, email, subject, message, _gotcha } = body;
+  if (!name || !email || !message) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+  if (!EMAIL_RE.test(email)) {
+    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+  }
+  if (name.length > 100 || subject.length > 150 || message.length > 5000) {
+    return NextResponse.json({ error: "Input too long" }, { status: 400 });
+  }
 
-    if (_gotcha) {
-      return NextResponse.json(
-        { success: true, message: "Message received." },
-        { status: 200 }
-      );
-    }
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.CONTACT_FROM_EMAIL?.trim();
+  const to = process.env.CONTACT_TO_EMAIL?.trim();
 
-    if (
-      typeof name !== "string" ||
-      typeof email !== "string" ||
-      typeof message !== "string" ||
-      (subject !== undefined && typeof subject !== "string")
-    ) {
-      return NextResponse.json(
-        { error: "Please provide valid form details." },
-        { status: 400 }
-      );
-    }
+  if (!apiKey?.trim() || !from || !to) {
+    const missingConfig = [
+      !apiKey?.trim() && "RESEND_API_KEY",
+      !from && "CONTACT_FROM_EMAIL",
+      !to && "CONTACT_TO_EMAIL",
+    ].filter(Boolean);
+    console.error("Contact service is missing configuration:", missingConfig.join(", "));
+    return NextResponse.json(
+      { error: "The contact service is not configured. Please email me directly." },
+      { status: 500 },
+    );
+  }
 
-    const cleanName = oneLine(name);
-    const cleanEmail = oneLine(email);
-    const cleanSubject = oneLine(typeof subject === "string" ? subject : "");
-    const cleanMessage = message.trim();
-
-    if (!cleanName || !cleanEmail || !cleanMessage) {
-      return NextResponse.json(
-        { error: "All required fields must be completed." },
-        { status: 400 }
-      );
-    }
-
-    if (
-      cleanName.length > 100 ||
-      cleanEmail.length > 254 ||
-      cleanSubject.length > 150 ||
-      cleanMessage.length < 10 ||
-      cleanMessage.length > 5000 ||
-      !EMAIL_PATTERN.test(cleanEmail)
-    ) {
-      return NextResponse.json(
-        { error: "Please check your form details." },
-        { status: 400 }
-      );
-    }
-
-    const apiKey = process.env.RESEND_API_KEY;
-    const toEmail = process.env.CONTACT_TO_EMAIL;
-    const fromEmail = process.env.CONTACT_FROM_EMAIL ?? "Portfolio Contact <onboarding@resend.dev>";
-
-    if (!apiKey || !toEmail) {
-      console.error("Contact form is missing RESEND_API_KEY or CONTACT_TO_EMAIL");
-      return NextResponse.json(
-        { error: "Email service is not configured." },
-        { status: 500 }
-      );
-    }
-
+  try {
     const resend = new Resend(apiKey);
-
     const { error } = await resend.emails.send({
-      from: fromEmail,
-      to: [toEmail],
-      replyTo: cleanEmail,
-      subject: cleanSubject || `Portfolio message from ${cleanName}`,
-      text: `Name: ${cleanName}
-Email: ${cleanEmail}
-
-Message:
-${cleanMessage}`,
+      from,
+      to,
+      replyTo: email,
+      subject: `[Portfolio] ${subject}`,
+      html: `
+        <h2>New message</h2>
+        <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+        <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
+        <p><strong>Message:</strong></p>
+        <p>${escapeHtml(message).replace(/\n/g, "<br />")}</p>
+      `,
     });
 
     if (error) {
-      console.error("Resend error:", error);
+      console.error("Resend rejected contact email:", error);
       return NextResponse.json(
-        { error: "Unable to send your message right now." },
-        { status: 502 }
+        { error: "The email provider could not accept this message. Please email me directly." },
+        { status: 502 },
       );
     }
 
-    return NextResponse.json(
-      { success: true, message: "Your message has been sent successfully!" },
-      { status: 200 }
-    );
+    return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Contact API error:", error);
+    console.error("Unexpected contact email error:", error);
     return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
-      { status: 500 }
+      { error: "The contact service encountered an error. Please email me directly." },
+      { status: 500 },
     );
   }
 }
