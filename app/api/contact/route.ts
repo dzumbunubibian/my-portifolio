@@ -63,13 +63,13 @@ export async function POST(req: Request) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.CONTACT_FROM_EMAIL?.trim();
   const to = process.env.CONTACT_TO_EMAIL?.trim();
+  const missingConfig = [
+    !apiKey?.trim() && "RESEND_API_KEY",
+    !from && "CONTACT_FROM_EMAIL",
+    !to && "CONTACT_TO_EMAIL",
+  ].filter((name): name is string => Boolean(name));
 
-  if (!apiKey?.trim() || !from || !to) {
-    const missingConfig = [
-      !apiKey?.trim() && "RESEND_API_KEY",
-      !from && "CONTACT_FROM_EMAIL",
-      !to && "CONTACT_TO_EMAIL",
-    ].filter(Boolean);
+  if (missingConfig.length > 0) {
     console.error("Contact service is missing configuration:", missingConfig.join(", "));
     return NextResponse.json(
       { error: "The contact service is not configured. Please email me directly." },
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const resend = new Resend(apiKey);
+    const resend = new Resend(apiKey!);
     const { error } = await resend.emails.send({
       from,
       to,
